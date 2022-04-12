@@ -85,7 +85,7 @@ sources:
             tests:
               - not_null
               - accepted_values:
-                  values: ['P', 'A']
+                  values: ['P', 'A', 'p', 'a']
           - name: sender
             tests:
               - not_null
@@ -100,9 +100,6 @@ sources:
               - not_null
           - name: date
           - name: petrol_95E5
-            # tests:
-            #   - dbt_utils.expression_is_true:
-            #       expression: '>= 0'
           - name: petrol_95E10
           - name: petrol_95E5_premium
           - name: petrol_98E5
