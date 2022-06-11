@@ -1,0 +1,5 @@
+dbt-bigquery==1.1.0
+google-cloud-bigquery==2.34.3
+pandas==1.4.2
+requests==2.27.1
+tqdm==4.64.0

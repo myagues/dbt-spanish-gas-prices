@@ -1,4 +1,5 @@
-
 target/
 dbt_packages/
 logs/
+.ipynb_checkpoints
+.mypy_cache

@@ -1,7 +1,6 @@
 {{
     config(
-        materialized='view',
-        sort='date'
+        materialized='view'
     )
 }}
 
@@ -30,19 +29,13 @@ municipality as (
     from {{ source('raw_data', 'municipality') }}
 ),
 
-prices as (
-    select * from {{ ref('prices__deduped') }}
-),
-
 final as (
     select
         {{ dbt_utils.star(ref('dim_stations')) }},
         region_name,
         province_name,
-        municipality_name,
-        {{ dbt_utils.star(from=ref('prices__deduped'), except=["station_id"]) }}
-    from prices
-    left join stations using (station_id)
+        municipality_name
+    from stations
     left join region using (region_id)
     left join province using (province_id)
     left join municipality using (municipality_id)

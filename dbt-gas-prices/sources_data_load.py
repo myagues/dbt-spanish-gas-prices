@@ -178,7 +178,7 @@ def data_upload(
 
     if table in ("region", "province", "municipality"):
         r = http.get(f"{base_API_url}/Listados/{_TABLE_CONFIG[table]['url']}/")
-        # convert response JSON to DataFrame
+        # response JSON to DataFrame
         df = pd.DataFrame.from_dict(r.json())
         # select subset of columns
         df = df[_TABLE_CONFIG[table]["columns"].keys()]
@@ -190,7 +190,6 @@ def data_upload(
         job.result()
 
     elif table == "prices":
-
         if start_date is None:
             # get the last day for which we have data
             query = f"SELECT max(date) AS last_date FROM {dataset_ref.project}.{dataset_ref.dataset_id}.fct_prices"
@@ -224,6 +223,7 @@ def data_upload(
                 t.update()
 
                 str_date = query_date.strftime("%d-%m-%Y")
+                time.sleep(sleep)
                 r = http.get(f"{base_API_url}/{_TABLE_CONFIG[table]['url']}/{str_date}")
                 data = r.json()["ListaEESSPrecio"]
 
@@ -248,8 +248,8 @@ def data_upload(
                         else pd.concat([df_batch, df], ignore_index=True)
                     )
 
-                # upload data if last iter or batch_size
                 query_date += step
+                # upload data if last iter or batch_size
                 if (
                     query_date == end_date or day_count == batch_size
                 ) and df_batch is not None:
@@ -258,7 +258,6 @@ def data_upload(
 
                     day_count = 0
                     df_batch = None
-                time.sleep(sleep)
     else:
         raise ValueError(f"Table {table} is not valid.")
 
@@ -276,7 +275,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--service_acc_path",
         help="Path to JSON credentials. See https://cloud.google.com/bigquery/docs/authentication/service-account-file#python for more information",
-        required=True,
+        default=None,
         type=str,
     )
     parser.add_argument(
@@ -316,7 +315,11 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    client = bigquery.Client.from_service_account_json(args.service_acc_path)
+    client = (
+        bigquery.Client()
+        if args.service_acc_path is None
+        else bigquery.Client.from_service_account_json(args.service_acc_path)
+    )
     dataset_ref = bigquery.DatasetReference(client.project, args.dataset)
 
     if args.create_tables:
