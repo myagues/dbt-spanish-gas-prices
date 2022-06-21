@@ -1,7 +1,7 @@
 import argparse
 import time
 from datetime import date, timedelta
-from typing import Mapping, Sequence, Tuple, TypedDict, Union
+from typing import Mapping, TypedDict, Union
 
 import pandas as pd  # type: ignore
 import requests
@@ -26,11 +26,11 @@ _PRICES_COLUMN_RENAME = {
     "Horario": "schedule",
     "C.P.": "zip_code",
     "IDEESS": "station_id",
-    "Precio Gasolina 95 E5": "petrol_95E5",
-    "Precio Gasolina 95 E10": "petrol_95E10",
-    "Precio Gasolina 95 E5 Premium": "petrol_95E5_premium",
-    "Precio Gasolina 98 E5": "petrol_98E5",
-    "Precio Gasolina 98 E10": "petrol_98E10",
+    "Precio Gasolina 95 E5": "gasoline_95E5",
+    "Precio Gasolina 95 E10": "gasoline_95E10",
+    "Precio Gasolina 95 E5 Premium": "gasoline_95E5_premium",
+    "Precio Gasolina 98 E5": "gasoline_98E5",
+    "Precio Gasolina 98 E10": "gasoline_98E10",
     "Precio Gasoleo A": "diesel_A",
     "Precio Gasoleo B": "diesel_B",
     "Precio Gasoleo Premium": "diesel_premium",
@@ -40,6 +40,8 @@ _PRICES_COLUMN_RENAME = {
     "Precio Gas Natural Comprimido": "cng",
     "Precio Gas Natural Licuado": "lng",
     "Precio Hidrogeno": "hydrogen",
+    "% BioEtanol": "perc_bioetanol",
+    "% Éster metílico": "perc_methyl_ester",
 }
 
 
@@ -49,15 +51,15 @@ class TableMetaData(TypedDict):
 
 
 _TABLE_CONFIG: Mapping[str, TableMetaData] = {
-    "prices": {
+    "gas_prices": {
         "url": "EstacionesTerrestresHist",
         "columns": _PRICES_COLUMN_RENAME,
     },
-    "region": {
+    "regions": {
         "url": "ComunidadesAutonomas",
         "columns": {"IDCCAA": "id", "CCAA": "name"},
     },
-    "province": {
+    "provinces": {
         "url": "Provincias",
         "columns": {
             "IDPovincia": "id",
@@ -65,7 +67,7 @@ _TABLE_CONFIG: Mapping[str, TableMetaData] = {
             "Provincia": "name",
         },
     },
-    "municipality": {
+    "municipalities": {
         "url": "Municipios",
         "columns": {
             "IDMunicipio": "id",
@@ -74,77 +76,6 @@ _TABLE_CONFIG: Mapping[str, TableMetaData] = {
         },
     },
 }
-
-
-def create_source_table(
-    client: bigquery.Client,
-    dataset_ref: bigquery.DatasetReference,
-    table_schema: Tuple[str, Sequence[str]],
-):
-    """Creates a table with non-nullable columns of format string."""
-    table_name, table_columns = table_schema
-    source_column = lambda x: bigquery.SchemaField(x, "STRING", mode="REQUIRED")
-
-    table_ref = dataset_ref.table(table_name)
-    schema = list(map(source_column, table_columns))
-    table = bigquery.Table(table_ref, schema=schema)
-    client.create_table(table, exists_ok=True)
-
-
-def create_tables(client: bigquery.Client, dataset_ref: bigquery.DatasetReference):
-    """Creates tables given client configuration."""
-
-    # create empty time-partitioned source table for prices and stations
-    table_ref = dataset_ref.table("prices")
-    schema = [
-        bigquery.SchemaField("municipality", "STRING", mode="REQUIRED"),
-        bigquery.SchemaField("municipality_id", "STRING", mode="REQUIRED"),
-        bigquery.SchemaField("province", "STRING", mode="REQUIRED"),
-        bigquery.SchemaField("province_id", "STRING", mode="REQUIRED"),
-        bigquery.SchemaField("region_id", "STRING", mode="REQUIRED"),
-        bigquery.SchemaField("town", "STRING", mode="REQUIRED"),
-        bigquery.SchemaField("address", "STRING", mode="REQUIRED"),
-        bigquery.SchemaField("longitude", "STRING"),
-        bigquery.SchemaField("latitude", "STRING"),
-        bigquery.SchemaField("road_side", "STRING", max_length=1, mode="REQUIRED"),
-        bigquery.SchemaField("name", "STRING", mode="REQUIRED"),
-        bigquery.SchemaField("restriction", "STRING", max_length=1, mode="REQUIRED"),
-        bigquery.SchemaField("sender", "STRING", max_length=2, mode="REQUIRED"),
-        bigquery.SchemaField("schedule", "STRING"),
-        bigquery.SchemaField("zip_code", "STRING", max_length=5, mode="REQUIRED"),
-        bigquery.SchemaField("station_id", "STRING", mode="REQUIRED"),
-        bigquery.SchemaField("date", "DATE", mode="REQUIRED"),
-        bigquery.SchemaField("petrol_95E5", "STRING"),
-        bigquery.SchemaField("petrol_95E10", "STRING"),
-        bigquery.SchemaField("petrol_95E5_premium", "STRING"),
-        bigquery.SchemaField("petrol_98E5", "STRING"),
-        bigquery.SchemaField("petrol_98E10", "STRING"),
-        bigquery.SchemaField("diesel_A", "STRING"),
-        bigquery.SchemaField("diesel_B", "STRING"),
-        bigquery.SchemaField("diesel_premium", "STRING"),
-        bigquery.SchemaField("bioetanol", "STRING"),
-        bigquery.SchemaField("biodiesel", "STRING"),
-        bigquery.SchemaField("lpg", "STRING"),
-        bigquery.SchemaField("cng", "STRING"),
-        bigquery.SchemaField("lng", "STRING"),
-        bigquery.SchemaField("hydrogen", "STRING"),
-    ]
-    table = bigquery.Table(table_ref, schema=schema)
-    table.time_partitioning = bigquery.TimePartitioning(
-        type_=bigquery.TimePartitioningType.MONTH, expiration_ms=7776000000
-    )  # 90 days expiration
-    client.create_table(table, exists_ok=True)
-
-    # create empty source table for regions
-    create_source_table(client, dataset_ref, ("region", ["id", "name"]))
-
-    # create empty source table for provinces
-    create_source_table(client, dataset_ref, ("province", ["id", "region_id", "name"]))
-
-    # create empty source table for municipalities
-    create_source_table(
-        client, dataset_ref, ("municipality", ["id", "province_id", "name"])
-    )
 
 
 def data_upload(
@@ -166,7 +97,7 @@ def data_upload(
         sleep: sleep timer between iterations, to not overburden the API
         max_retries: number of retries in case the API returns an error
     """
-    table_id = dataset_ref.table(table)
+    table_id = dataset_ref.table(f"raw_{table}")
     # set up request properties
     base_API_url = "https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes"
     http = requests.Session()
@@ -176,7 +107,7 @@ def data_upload(
     adapter = HTTPAdapter(max_retries=retries)
     http.mount("https://", adapter)
 
-    if table in ("region", "province", "municipality"):
+    if table in ("regions", "provinces", "municipalities"):
         r = http.get(f"{base_API_url}/Listados/{_TABLE_CONFIG[table]['url']}/")
         # response JSON to DataFrame
         df = pd.DataFrame.from_dict(r.json())
@@ -189,10 +120,10 @@ def data_upload(
         job = client.load_table_from_dataframe(df, table_id, job_config=job_config)
         job.result()
 
-    elif table == "prices":
+    elif table == "gas_prices":
         if start_date is None:
             # get the last day for which we have data
-            query = f"SELECT max(date) AS last_date FROM {dataset_ref.project}.{dataset_ref.dataset_id}.fct_prices"
+            query = f"SELECT max(date) AS last_date FROM {dataset_ref.project}.{dataset_ref.dataset_id}.prices"
             results = client.query(query)
             last_date: Union[date, None] = None
             for row in results:
@@ -202,6 +133,8 @@ def data_upload(
                 last_date += timedelta(days=1)
             # get data from last date or from yesterday if no value in prices
             query_date = last_date or date.today() - timedelta(days=1)
+        elif start_date == "today":
+            query_date = date.today() - timedelta(days=1)
         else:
             query_date = date.fromisoformat(start_date)
 
@@ -224,7 +157,12 @@ def data_upload(
 
                 str_date = query_date.strftime("%d-%m-%Y")
                 time.sleep(sleep)
-                r = http.get(f"{base_API_url}/{_TABLE_CONFIG[table]['url']}/{str_date}")
+                if start_date == "today":
+                    r = http.get(f"{base_API_url}/EstacionesTerrestres")
+                else:
+                    r = http.get(
+                        f"{base_API_url}/{_TABLE_CONFIG[table]['url']}/{str_date}"
+                    )
                 data = r.json()["ListaEESSPrecio"]
 
                 # some days might be missing, but response is still 200 with and empty JSON
@@ -232,13 +170,7 @@ def data_upload(
                 if data:
                     df = pd.DataFrame.from_dict(data)
                     # add date column
-                    df["date"] = query_date
-                    df = df.drop(
-                        columns=[
-                            "% BioEtanol",
-                            "% Éster metílico",
-                        ]
-                    )
+                    df["date"] = end_date if start_date == "today" else query_date
                     # rename columns to match our table schema
                     df = df.rename(columns=_TABLE_CONFIG[table]["columns"])
                     # concatenate multiple days before loading the batch in BigQuery
@@ -282,18 +214,13 @@ if __name__ == "__main__":
         "--table",
         help="Source table to target.",
         choices=[
-            "prices",
-            "region",
-            "province",
-            "municipality",
+            "gas_prices",
+            "regions",
+            "provinces",
+            "municipalities",
         ],
         default=None,
         type=str,
-    )
-    parser.add_argument(
-        "--create_tables",
-        help="Whether to create new source tables for: 'prices', 'region', 'province' and 'municipality'.",
-        action="store_true",
     )
     parser.add_argument(
         "--batch_size",
@@ -304,12 +231,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--sleep_timer",
         help="Seconds to wait between API calls.",
-        default=2,
+        default=1,
         type=int,
     )
     parser.add_argument(
         "--start_date",
-        help="Starting date for querying prices (requires ISO format, 'yyyy-mm-dd').",
+        help="Starting date for querying prices (requires ISO format, 'yyyy-mm-dd') or 'today'.",
         default=None,
         type=str,
     )
@@ -321,9 +248,6 @@ if __name__ == "__main__":
         else bigquery.Client.from_service_account_json(args.service_acc_path)
     )
     dataset_ref = bigquery.DatasetReference(client.project, args.dataset)
-
-    if args.create_tables:
-        create_tables(client, dataset_ref)
 
     if args.table is not None:
         data_upload(
