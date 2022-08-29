@@ -23,8 +23,8 @@ $ bq mk -t --description "List of Spanish regions." gas_prices_esp.raw_regions .
 $ bq mk -t --description "List of Spanish provinces." gas_prices_esp.raw_provinces ./table_schemas/provinces.json
 $ bq mk -t --description "List of Spanish municipalities." gas_prices_esp.raw_municipalities ./table_schemas/municipalities.json
 $ bq mk -t --description "Data of daily gas prices in Spanish gas stations from API." \
+    --time_partitioning_field date \
     --time_partitioning_type MONTH \
-    --time_partitioning_expiration 2592000 \
     gas_prices_esp.raw_gas_prices ./table_schemas/gas_prices.json
 ```
 

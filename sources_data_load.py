@@ -1,13 +1,15 @@
 import argparse
+import asyncio
+import json
 import time
-from datetime import date, timedelta
+from datetime import date
 from typing import Mapping, TypedDict, Union
 
+import aiohttp
+import numpy as np
 import pandas as pd  # type: ignore
-import requests
 from google.cloud import bigquery
-from requests.adapters import HTTPAdapter, Retry
-from tqdm import tqdm  # type: ignore
+from tqdm.asyncio import tqdm
 
 _PRICES_COLUMN_RENAME = {
     "Municipio": "municipality",
@@ -43,6 +45,7 @@ _PRICES_COLUMN_RENAME = {
     "% BioEtanol": "perc_bioetanol",
     "% Éster metílico": "perc_methyl_ester",
 }
+_BASE_API_URL = "https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes"
 
 
 class TableMetaData(TypedDict):
@@ -78,14 +81,36 @@ _TABLE_CONFIG: Mapping[str, TableMetaData] = {
 }
 
 
-def data_upload(
+async def worker(day, session, table_id):
+    if day == date.today():
+        url = f"{_BASE_API_URL}/EstacionesTerrestres"
+    else:
+        str_date = day.strftime("%d-%m-%Y")
+        url = f"{_BASE_API_URL}/{_TABLE_CONFIG['gas_prices']['url']}/{str_date}"
+
+    async with session.get(url) as resp:
+        data = await resp.json()
+        # some days might be missing, but response is still 200 with and empty JSON
+        # skip the day if content is empty
+        if data:
+            df = pd.DataFrame.from_dict(data["ListaEESSPrecio"])
+            # add date column
+            df["date"] = day
+            # rename columns to match our table schema
+            df = df.rename(columns=_TABLE_CONFIG["gas_prices"]["columns"])
+
+            # non-awaitable :(, see https://github.com/googleapis/python-bigquery/issues/18
+            # job = client.load_table_from_dataframe(df, table_id)
+            # job.result()
+            return df
+
+
+async def data_upload(
     client: bigquery.Client,
     dataset_ref: bigquery.DatasetReference,
     table: str,
     start_date: Union[str, None],
-    batch_size=15,
-    sleep=2,
-    max_retries=5,
+    max_connections=5,
 ):
     """Uploads data from API to BigQuery.
     Args:
@@ -93,24 +118,19 @@ def data_upload(
         dataset_ref: dataset where tables and views are saved
         table: table name where data will be uploaded
         start_date: if given, starting date to upload data
-        batch_size: days of data to accumulate before uploading
-        sleep: sleep timer between iterations, to not overburden the API
-        max_retries: number of retries in case the API returns an error
+        max_connections: maximum parallel connections to the host.
     """
     table_id = dataset_ref.table(f"raw_{table}")
     # set up request properties
-    base_API_url = "https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes"
-    http = requests.Session()
-    retries = Retry(
-        total=max_retries, backoff_factor=5, status_forcelist=[429, 500, 502, 503, 504]
-    )
-    adapter = HTTPAdapter(max_retries=retries)
-    http.mount("https://", adapter)
+    headers = {"content-type": "application/json"}
 
     if table in ("regions", "provinces", "municipalities"):
-        r = http.get(f"{base_API_url}/Listados/{_TABLE_CONFIG[table]['url']}/")
-        # response JSON to DataFrame
-        df = pd.DataFrame.from_dict(r.json())
+        async with aiohttp.ClientSession(headers=headers) as session:
+            async with session.get(
+                f"{_BASE_API_URL}/Listados/{_TABLE_CONFIG[table]['url']}/"
+            ) as resp:
+                # response JSON to DataFrame
+                df = pd.DataFrame.from_dict(json.loads(await resp.text()))
         # select subset of columns
         df = df[_TABLE_CONFIG[table]["columns"].keys()]
         # rename columns to match our table schema
@@ -121,75 +141,35 @@ def data_upload(
         job.result()
 
     elif table == "gas_prices":
-        if start_date is None:
-            # get the last day for which we have data
-            query = f"SELECT max(date) AS last_date FROM {dataset_ref.project}.{dataset_ref.dataset_id}.prices"
-            results = client.query(query)
-            last_date: Union[date, None] = None
-            for row in results:
-                last_date = row["last_date"]
-            # upload the next day
-            if last_date is not None:
-                last_date += timedelta(days=1)
-            # get data from last date or from yesterday if no value in prices
-            query_date = last_date or date.today() - timedelta(days=1)
-        elif start_date == "today":
-            query_date = date.today() - timedelta(days=1)
-        else:
-            query_date = date.fromisoformat(start_date)
+        connector = aiohttp.TCPConnector(limit_per_host=max_connections)
+        async with aiohttp.ClientSession(
+            connector=connector, headers=headers
+        ) as session:
 
-        end_date = date.today()
-        step = timedelta(days=1)
+            if start_date is None:
+                df = await worker(date.today(), session, table_id)
+                job = client.load_table_from_dataframe(df, table_id)
+                job.result()
 
-        df_batch = None
-        day_count = 0
-
-        with tqdm(
-            total=(end_date - query_date).days,
-            bar_format="{postfix[0][query]} ({n_fmt}/{total_fmt}): {percentage:3.0f}% {bar} [{elapsed}<{remaining}, {rate_fmt}]",
-            postfix=[dict(query=query_date.strftime("%Y-%m-%d"))],
-        ) as t:
-            while query_date < end_date:
-
-                day_count += 1
-                t.postfix[0]["query"] = query_date.strftime("%Y-%m-%d")
-                t.update()
-
-                str_date = query_date.strftime("%d-%m-%Y")
-                time.sleep(sleep)
-                if start_date == "today":
-                    r = http.get(f"{base_API_url}/EstacionesTerrestres")
-                else:
-                    r = http.get(
-                        f"{base_API_url}/{_TABLE_CONFIG[table]['url']}/{str_date}"
-                    )
-                data = r.json()["ListaEESSPrecio"]
-
-                # some days might be missing, but response is still 200 with and empty JSON
-                # skip the day if content is empty
-                if data:
-                    df = pd.DataFrame.from_dict(data)
-                    # add date column
-                    df["date"] = end_date if start_date == "today" else query_date
-                    # rename columns to match our table schema
-                    df = df.rename(columns=_TABLE_CONFIG[table]["columns"])
-                    # concatenate multiple days before loading the batch in BigQuery
-                    df_batch = (
-                        df
-                        if df_batch is None
-                        else pd.concat([df_batch, df], ignore_index=True)
-                    )
-
-                query_date += step
-                # upload data if last iter or batch_size
-                if (
-                    query_date == end_date or day_count == batch_size
-                ) and df_batch is not None:
-                    job = client.load_table_from_dataframe(df_batch, table_id)
+            else:
+                dates_range = pd.date_range(
+                    start=date.fromisoformat(start_date),
+                    end=date.today(),
+                    inclusive="left",
+                )
+                # extra loop for BQ upload, ugly workaround as a batch
+                splits = (
+                    [dates_range]
+                    if len(dates_range) < 200
+                    else np.array_split(dates_range, 100)
+                )
+                for date_range in tqdm(splits):
+                    tasks = [worker(day.date(), session, table_id) for day in date_range]
+                    df_list = await tqdm.gather(*tasks, leave=False)
+                    df = pd.concat(df_list)
+                    job = client.load_table_from_dataframe(df, table_id)
                     job.result()
 
-                    day_count = 0
-                    df_batch = None
     else:
         raise ValueError(f"Table {table} is not valid.")
 
@@ -223,15 +203,9 @@ if __name__ == "__main__":
         type=str,
     )
     parser.add_argument(
-        "--batch_size",
-        help="Days to add in a batch before uploading to BigQuery.",
-        default=15,
-        type=int,
-    )
-    parser.add_argument(
-        "--sleep_timer",
-        help="Seconds to wait between API calls.",
-        default=1,
+        "--max_connections",
+        help="Maximum parallel connections to the host.",
+        default=5,
         type=int,
     )
     parser.add_argument(
@@ -250,11 +224,12 @@ if __name__ == "__main__":
     dataset_ref = bigquery.DatasetReference(client.project, args.dataset)
 
     if args.table is not None:
-        data_upload(
-            client,
-            dataset_ref,
-            args.table,
-            start_date=args.start_date,
-            batch_size=args.batch_size,
-            sleep=args.sleep_timer,
+        asyncio.run(
+            data_upload(
+                client,
+                dataset_ref,
+                args.table,
+                start_date=args.start_date,
+                max_connections=args.max_connections,
+            )
         )
