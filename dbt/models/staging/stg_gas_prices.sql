@@ -29,22 +29,22 @@ daily_station_prices as (
         cast(municipality_id as integer) as municipality_id,
 
         -- station prices
-        safe_cast(replace(gasoline_95E5, ',', '.') as numeric) as gasoline_95E5,
-        safe_cast(replace(gasoline_95E5_premium, ',', '.') as numeric) as gasoline_95E5_premium,
-        safe_cast(replace(gasoline_95E10, ',', '.') as numeric) as gasoline_95E10,
-        safe_cast(replace(gasoline_98E5, ',', '.') as numeric) as gasoline_98E5,
-        safe_cast(replace(gasoline_98E10, ',', '.') as numeric) as gasoline_98E10,
-        safe_cast(replace(diesel_A, ',', '.') as numeric) as diesel_A,
-        safe_cast(replace(diesel_B, ',', '.') as numeric) as diesel_B,
-        safe_cast(replace(diesel_premium, ',', '.') as numeric) as diesel_premium,
-        safe_cast(replace(bioetanol, ',', '.') as numeric) as bioetanol,
-        safe_cast(replace(biodiesel, ',', '.') as numeric) as biodiesel,
-        safe_cast(replace(perc_bioetanol, ',', '.') as numeric) as perc_bioetanol,
-        safe_cast(replace(perc_methyl_ester, ',', '.') as numeric) as perc_methyl_ester,
-        safe_cast(replace(lpg, ',', '.') as numeric) as lpg,
-        safe_cast(replace(cng, ',', '.') as numeric) as cng,
-        safe_cast(replace(lng, ',', '.') as numeric) as lng,
-        safe_cast(replace(hydrogen, ',', '.') as numeric) as hydrogen
+        {{ safe_cast_numeric('gasoline_95E5') }} as gasoline_95E5,
+        {{ safe_cast_numeric('gasoline_95E5_premium') }} as gasoline_95E5_premium,
+        {{ safe_cast_numeric('gasoline_95E10') }} as gasoline_95E10,
+        {{ safe_cast_numeric('gasoline_98E5') }} as gasoline_98E5,
+        {{ safe_cast_numeric('gasoline_98E10') }} as gasoline_98E10,
+        {{ safe_cast_numeric('diesel_A') }} as diesel_A,
+        {{ safe_cast_numeric('diesel_B') }} as diesel_B,
+        {{ safe_cast_numeric('diesel_premium') }} as diesel_premium,
+        {{ safe_cast_numeric('bioetanol') }} as bioetanol,
+        {{ safe_cast_numeric('biodiesel') }} as biodiesel,
+        {{ safe_cast_numeric('perc_bioetanol') }} as perc_bioetanol,
+        {{ safe_cast_numeric('perc_methyl_ester') }} as perc_methyl_ester,
+        {{ safe_cast_numeric('lpg') }} as lpg,
+        {{ safe_cast_numeric('cng') }} as cng,
+        {{ safe_cast_numeric('lng') }} as lng,
+        {{ safe_cast_numeric('hydrogen') }} as hydrogen
 
     from source
 

@@ -1,11 +1,26 @@
+-- https://docs.getdbt.com/reference/resource-configs/bigquery-configs#merge-behavior-incremental-models
+
+{% set partitions_to_replace = [
+  'date_trunc(current_date, month)',
+] %}
+
+{{
+    config(
+        materialized='incremental',
+        incremental_strategy='insert_overwrite',
+        partition_by={ 'field': 'date', 'data_type': 'date', 'granularity': 'month' },
+        partitions = partitions_to_replace
+    )
+}}
+
 with
 
-final as (
+month_partition as (
 
     select
         station_id,
         date,
-        price_id,
+        -- price_id,
         gasoline_95E5,
         gasoline_95E5_premium,
         gasoline_95E10,
@@ -25,12 +40,18 @@ final as (
 
     from {{ ref('stg_gas_prices') }}
 
+    {% if is_incremental() %}
+
+        where date_trunc(date, month) in ({{ partitions_to_replace | join(',') }})
+
+    {% endif %}
+
 )
 
-
-{{ dbt_utils.deduplicate(
-    relation='final',
-    partition_by="price_id",
-    order_by="date asc"
-   )
+{{
+    dbt_utils.deduplicate(
+        relation='month_partition',
+        partition_by='station_id, date',
+        order_by='date desc'
+    )
 }}

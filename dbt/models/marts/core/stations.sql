@@ -1,3 +1,11 @@
+{{
+    config(
+        materialized='incremental',
+        unique_key='station_id'
+    )
+}}
+
+
 with
 
 station_info as (
@@ -19,6 +27,12 @@ station_info as (
         municipality_id
 
     from {{ ref('stg_gas_prices') }}
+
+    {% if is_incremental() %}
+
+        where date in (current_date)
+
+    {% endif %}
 
 ),
 
@@ -80,9 +94,4 @@ final as (
 
 )
 
-{{ dbt_utils.deduplicate(
-    relation='final',
-    partition_by="station_id",
-    order_by="station_id asc"
-   )
-}}
+select * from final
