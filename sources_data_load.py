@@ -1,7 +1,6 @@
 import argparse
 import asyncio
 import json
-import time
 from datetime import date
 from typing import Mapping, TypedDict, Union
 
@@ -90,7 +89,7 @@ async def worker(day, session, table_id):
 
     async with session.get(url) as resp:
         data = await resp.json()
-        # some days might be missing, but response is still 200 with and empty JSON
+        # some days might be missing, but response is still 200 with an empty JSON
         # skip the day if content is empty
         if data:
             df = pd.DataFrame.from_dict(data["ListaEESSPrecio"])
@@ -110,6 +109,7 @@ async def data_upload(
     dataset_ref: bigquery.DatasetReference,
     table: str,
     start_date: Union[str, None],
+    end_date: Union[str, None],
     max_connections=5,
 ):
     """Uploads data from API to BigQuery.
@@ -118,6 +118,7 @@ async def data_upload(
         dataset_ref: dataset where tables and views are saved
         table: table name where data will be uploaded
         start_date: if given, starting date to upload data
+        end_date: if given, final date to upload data
         max_connections: maximum parallel connections to the host.
     """
     table_id = dataset_ref.table(f"raw_{table}")
@@ -152,9 +153,14 @@ async def data_upload(
                 job.result()
 
             else:
+                if end_date is not None:
+                    end_date_ = date.fromisoformat(end_date)
+                else:
+                    end_date_ = date.today()
+
                 dates_range = pd.date_range(
                     start=date.fromisoformat(start_date),
-                    end=date.today(),
+                    end=end_date_,
                     inclusive="left",
                 )
                 # extra loop for BQ upload, ugly workaround as a batch
@@ -210,7 +216,13 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--start_date",
-        help="Starting date for querying prices (requires ISO format, 'yyyy-mm-dd') or 'today'.",
+        help="Starting date for querying prices (requires ISO format, 'yyyy-mm-dd').",
+        default=None,
+        type=str,
+    )
+    parser.add_argument(
+        "--end_date",
+        help="End date for querying prices (requires ISO format, 'yyyy-mm-dd').",
         default=None,
         type=str,
     )
@@ -230,6 +242,7 @@ if __name__ == "__main__":
                 dataset_ref,
                 args.table,
                 start_date=args.start_date,
+                end_date=args.end_date,
                 max_connections=args.max_connections,
             )
         )
