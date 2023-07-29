@@ -3,7 +3,6 @@ with
 prices as (
 
     select * from {{ ref('prices') }}
-    order by date desc
 
 ),
 

@@ -6,7 +6,7 @@ from typing import Mapping, TypedDict, Union
 
 import aiohttp
 import numpy as np
-import pandas as pd  # type: ignore
+import pandas as pd
 from google.cloud import bigquery
 from tqdm.asyncio import tqdm
 

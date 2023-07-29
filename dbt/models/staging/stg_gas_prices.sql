@@ -11,7 +11,7 @@ daily_station_prices as (
     select
         cast(station_id as integer) as station_id,
         date,
-        {{ dbt_utils.surrogate_key(['station_id', 'date']) }} as price_id,
+        {{ dbt_utils.generate_surrogate_key(['station_id', 'date']) }} as price_id,
 
         -- station info
         trim(name) as name,

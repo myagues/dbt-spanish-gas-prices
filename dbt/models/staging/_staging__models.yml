@@ -47,7 +47,7 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ['P', 'A', 'p', 'a']
+              values: ['P', 'A', 'R', 'p', 'a', 'r']
 
       - name: sender
         description: "Whether a wholesale operator (OM) or a minor distributor (dm) send the data"

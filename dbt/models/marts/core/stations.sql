@@ -1,9 +1,4 @@
-{{
-    config(
-        materialized='incremental',
-        unique_key='station_id'
-    )
-}}
+{{ config(materialized="incremental", unique_key="station_id") }}
 
 
 with
@@ -26,13 +21,9 @@ station_info as (
         province_id,
         municipality_id
 
-    from {{ ref('stg_gas_prices') }}
+    from {{ ref("stg_gas_prices") }}
 
-    {% if is_incremental() %}
-
-        where date in (current_date)
-
-    {% endif %}
+    {% if is_incremental() %} where date in (current_date) {% endif %}
 
 ),
 
@@ -42,7 +33,7 @@ regions as (
         id as region_id,
         name as region_name
 
-    from {{ ref('stg_regions') }}
+    from {{ ref("stg_regions") }}
 
 ),
 
@@ -52,7 +43,7 @@ provinces as (
         id as province_id,
         name as province_name
 
-    from {{ ref('stg_provinces') }}
+    from {{ ref("stg_provinces") }}
 
 ),
 
@@ -62,7 +53,7 @@ municipalities as (
         id as municipality_id,
         name as municipality_name
 
-    from {{ ref('stg_municipalities') }}
+    from {{ ref("stg_municipalities") }}
 
 ),
 
