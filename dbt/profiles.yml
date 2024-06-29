@@ -22,6 +22,3 @@ gas_prices_esp:
       project: "{{ env_var('GOOGLE_CLOUD_PROJECT') }}"
       threads: 1
       type: bigquery
-
-config:
-  use_colors: False

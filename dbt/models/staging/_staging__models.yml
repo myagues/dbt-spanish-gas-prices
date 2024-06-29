@@ -5,17 +5,17 @@ models:
     columns:
       - name: station_id
         description: "Station identifier"
-        tests:
+        data_tests:
           - not_null
 
       - name: date
         description: ""
-        tests:
+        data_tests:
           - not_null
 
       - name: price_id
         description: "Price identifier built from `station_id` and `date`"
-        tests:
+        data_tests:
           - not_null
 
       - name: name
@@ -38,20 +38,20 @@ models:
 
       - name: road_side
         description: "In which side of the road the station is placed: (D) right, (I) left, (N) Unknown"
-        tests:
+        data_tests:
           - accepted_values:
               values: ['D', 'I', 'N']
 
       - name: restriction
         description: "??"
-        tests:
+        data_tests:
           - not_null
           - accepted_values:
               values: ['P', 'A', 'R', 'p', 'a', 'r']
 
       - name: sender
         description: "Whether a wholesale operator (OM) or a minor distributor (dm) send the data"
-        tests:
+        data_tests:
           - not_null
           - accepted_values:
               values: ['dm', 'OM']
@@ -61,7 +61,7 @@ models:
 
       - name: region_id
         description: "Region identifier"
-        tests:
+        data_tests:
           - not_null
           - relationships:
               to: ref('stg_regions')
@@ -69,7 +69,7 @@ models:
 
       - name: province_id
         description: "Province identifier"
-        tests:
+        data_tests:
           - not_null
           - relationships:
               to: ref('stg_provinces')
@@ -77,7 +77,7 @@ models:
 
       - name: municipality_id
         description: "Municipality identifier"
-        tests:
+        data_tests:
           - not_null
           - relationships:
               to: ref('stg_municipalities')
@@ -85,97 +85,97 @@ models:
 
       - name: gasoline_95e5
         description: ""
-        tests:
+        data_tests:
           - dbt_utils.expression_is_true:
               expression: '>= 0 or null'
 
       - name: gasoline_95e5_premium
         description: ""
-        tests:
+        data_tests:
           - dbt_utils.expression_is_true:
               expression: '>= 0 or null'
 
       - name: gasoline_95e10
         description: ""
-        tests:
+        data_tests:
           - dbt_utils.expression_is_true:
               expression: '>= 0 or null'
 
       - name: gasoline_98e5
         description: ""
-        tests:
+        data_tests:
           - dbt_utils.expression_is_true:
               expression: '>= 0 or null'
 
       - name: gasoline_98e10
         description: ""
-        tests:
+        data_tests:
           - dbt_utils.expression_is_true:
               expression: '>= 0 or null'
 
       - name: diesel_a
         description: "Road diesel"
-        tests:
+        data_tests:
           - dbt_utils.expression_is_true:
               expression: '>= 0 or null'
 
       - name: diesel_b
         description: "Agricultural diesel"
-        tests:
+        data_tests:
           - dbt_utils.expression_is_true:
               expression: '>= 0 or null'
 
       - name: diesel_premium
         description: ""
-        tests:
+        data_tests:
           - dbt_utils.expression_is_true:
               expression: '>= 0 or null'
 
       - name: bioetanol
         description: ""
-        tests:
+        data_tests:
           - dbt_utils.expression_is_true:
               expression: '>= 0 or null'
 
       - name: biodiesel
         description: ""
-        tests:
+        data_tests:
           - dbt_utils.expression_is_true:
               expression: '>= 0 or null'
 
       - name: perc_bioetanol
         description: ""
-        tests:
+        data_tests:
           - dbt_utils.expression_is_true:
               expression: '>= 0 or null'
 
       - name: perc_methyl_ester
         description: ""
-        tests:
+        data_tests:
           - dbt_utils.expression_is_true:
               expression: '>= 0 or null'
 
       - name: lpg
         description: "Liquefied petroleum gas"
-        tests:
+        data_tests:
           - dbt_utils.expression_is_true:
               expression: '>= 0 or null'
 
       - name: cng
         description: "Compressed natural gas"
-        tests:
+        data_tests:
           - dbt_utils.expression_is_true:
               expression: '>= 0 or null'
 
       - name: lng
         description: "Liquefied natural gas"
-        tests:
+        data_tests:
           - dbt_utils.expression_is_true:
               expression: '>= 0 or null'
 
       - name: hydrogen
         description: ""
-        tests:
+        data_tests:
           - dbt_utils.expression_is_true:
               expression: '>= 0 or null'
 
@@ -183,12 +183,12 @@ models:
     columns:
       - name: id
         description: "Municipality identifier"
-        tests:
+        data_tests:
           - unique
 
       - name: province_id
         description: "Province identifier"
-        tests:
+        data_tests:
           - not_null
           - relationships:
               to: ref('stg_provinces')
@@ -196,19 +196,19 @@ models:
 
       - name: name
         description: "Municipality name"
-        tests:
+        data_tests:
           - not_null
 
   - name: stg_provinces
     columns:
       - name: id
         description: "Province identifier"
-        tests:
+        data_tests:
           - unique
 
       - name: region_id
         description: "Region identifier"
-        tests:
+        data_tests:
           - not_null
           - relationships:
               to: ref('stg_regions')
@@ -216,17 +216,17 @@ models:
 
       - name: name
         description: "Province name"
-        tests:
+        data_tests:
           - unique
 
   - name: stg_regions
     columns:
       - name: id
         description: "Region identifier"
-        tests:
+        data_tests:
           - unique
 
       - name: name
         description: "Region name"
-        tests:
+        data_tests:
           - not_null

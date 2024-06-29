@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import json
+import logging
 from datetime import date
 from typing import Mapping, TypedDict, Union
 
@@ -45,6 +46,7 @@ _PRICES_COLUMN_RENAME = {
     "% Éster metílico": "perc_methyl_ester",
 }
 _BASE_API_URL = "https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes"
+logger = logging.getLogger(__name__)
 
 
 class TableMetaData(TypedDict):
@@ -126,10 +128,11 @@ async def data_upload(
     headers = {"content-type": "application/json"}
 
     if table in ("regions", "provinces", "municipalities"):
+        logger.info(f"Querying {table}.")
+        request_url = f"{_BASE_API_URL}/Listados/{_TABLE_CONFIG[table]['url']}/"
+        logger.info(f"URL: {request_url}")
         async with aiohttp.ClientSession(headers=headers) as session:
-            async with session.get(
-                f"{_BASE_API_URL}/Listados/{_TABLE_CONFIG[table]['url']}/"
-            ) as resp:
+            async with session.get(request_url) as resp:
                 # response JSON to DataFrame
                 df = pd.DataFrame.from_dict(json.loads(await resp.text()))
         # select subset of columns
@@ -140,8 +143,10 @@ async def data_upload(
         job_config = bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE")
         job = client.load_table_from_dataframe(df, table_id, job_config=job_config)
         job.result()
+        logger.info("Upload done.")
 
     elif table == "gas_prices":
+        logger.info("Querying gas prices.")
         connector = aiohttp.TCPConnector(limit_per_host=max_connections)
         async with aiohttp.ClientSession(
             connector=connector, headers=headers
@@ -161,7 +166,6 @@ async def data_upload(
                 dates_range = pd.date_range(
                     start=date.fromisoformat(start_date),
                     end=end_date_,
-                    inclusive="left",
                 )
                 # extra loop for BQ upload, ugly workaround as a batch
                 splits = (
@@ -169,12 +173,14 @@ async def data_upload(
                     if len(dates_range) < 200
                     else np.array_split(dates_range, 100)
                 )
+                logger.info(f"Split amount: {len(splits)}.")
                 for date_range in tqdm(splits):
                     tasks = [worker(day.date(), session, table_id) for day in date_range]
                     df_list = await tqdm.gather(*tasks, leave=False)
                     df = pd.concat(df_list)
                     job = client.load_table_from_dataframe(df, table_id)
                     job.result()
+                    logger.info(f"Upload done for {date_range.date}")
 
     else:
         raise ValueError(f"Table {table} is not valid.")
