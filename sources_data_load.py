@@ -1,13 +1,13 @@
 import argparse
 import asyncio
-import json
 import logging
 from datetime import date
+from itertools import batched
 from typing import Mapping, TypedDict, Union
 
 import aiohttp
-import numpy as np
 import pandas as pd
+import pyarrow as pa
 from google.cloud import bigquery
 from tqdm.asyncio import tqdm
 
@@ -82,7 +82,9 @@ _TABLE_CONFIG: Mapping[str, TableMetaData] = {
 }
 
 
-async def worker(day, session, table_id):
+async def worker(
+    day: date, session: aiohttp.ClientSession, table_id: bigquery.TableReference
+):
     if day == date.today():
         url = f"{_BASE_API_URL}/EstacionesTerrestres"
     else:
@@ -94,11 +96,14 @@ async def worker(day, session, table_id):
         # some days might be missing, but response is still 200 with an empty JSON
         # skip the day if content is empty
         if data:
-            df = pd.DataFrame.from_dict(data["ListaEESSPrecio"])
+            df = pd.DataFrame.from_dict(
+                data["ListaEESSPrecio"], dtype=pd.ArrowDtype(pa.string())
+            )
             # add date column
-            df["date"] = day
+            df["date"] = pa.scalar(day, type=pa.date32())
             # rename columns to match our table schema
             df = df.rename(columns=_TABLE_CONFIG["gas_prices"]["columns"])
+            df = df.replace(r"^\s*$", None, regex=True)
 
             # non-awaitable :(, see https://github.com/googleapis/python-bigquery/issues/18
             # job = client.load_table_from_dataframe(df, table_id)
@@ -134,11 +139,14 @@ async def data_upload(
         async with aiohttp.ClientSession(headers=headers) as session:
             async with session.get(request_url) as resp:
                 # response JSON to DataFrame
-                df = pd.DataFrame.from_dict(json.loads(await resp.text()))
+                df = pd.DataFrame.from_dict(
+                    await resp.json(), dtype=pd.ArrowDtype(pa.string())
+                )
         # select subset of columns
         df = df[_TABLE_CONFIG[table]["columns"].keys()]
         # rename columns to match our table schema
         df = df.rename(columns=_TABLE_CONFIG[table]["columns"])
+        df = df.replace(r"^\s*$", None, regex=True)
         # config upload to overwrite content
         job_config = bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE")
         job = client.load_table_from_dataframe(df, table_id, job_config=job_config)
@@ -151,7 +159,6 @@ async def data_upload(
         async with aiohttp.ClientSession(
             connector=connector, headers=headers
         ) as session:
-
             if start_date is None:
                 df = await worker(date.today(), session, table_id)
                 job = client.load_table_from_dataframe(df, table_id)
@@ -171,16 +178,18 @@ async def data_upload(
                 splits = (
                     [dates_range]
                     if len(dates_range) < 200
-                    else np.array_split(dates_range, 100)
+                    else list(batched(dates_range, 100))
                 )
                 logger.info(f"Split amount: {len(splits)}.")
                 for date_range in tqdm(splits):
-                    tasks = [worker(day.date(), session, table_id) for day in date_range]
+                    tasks = [
+                        worker(day.date(), session, table_id) for day in date_range
+                    ]
                     df_list = await tqdm.gather(*tasks, leave=False)
                     df = pd.concat(df_list)
                     job = client.load_table_from_dataframe(df, table_id)
                     job.result()
-                    logger.info(f"Upload done for {date_range.date}")
+                    logger.info(f"Upload done for {date_range[-1].date}")
 
     else:
         raise ValueError(f"Table {table} is not valid.")
