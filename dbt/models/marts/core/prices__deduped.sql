@@ -1,11 +1,8 @@
-{{
-    config(materialized='view')
-}}
+{{ config(materialized='view') }}
 
 with
 
 final as (
-
     select
         {{ dbt_utils.star(from=ref('prices'), except=["price_id", "date"]) }},
         min(date) as date
@@ -22,7 +19,6 @@ final as (
     group by
         station_id,
         {{ dbt_utils.star(from=ref('prices'), except=["price_id", "date", "station_id"]) }}
-
 )
 
 select * from final

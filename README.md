@@ -10,32 +10,109 @@ This repository uses [dbt](https://www.getdbt.com) with [BigQuery](https://cloud
 
 Refer to the following [tutorial](https://cloud.google.com/resource-manager/docs/creating-managing-projects) to set up a project in Google Cloud.
 
-The project requires Python v3.9+, and my recommendation is to set up a virtual environment. For using Python with BigQuery you can follow the steps in the following [tutorial](https://codelabs.developers.google.com/codelabs/cloud-bigquery-python).
+The project requires Python v3.12+, and my recommendation is to set up a virtual environment. For using Python with BigQuery you can follow the steps in the following [tutorial](https://codelabs.developers.google.com/codelabs/cloud-bigquery-python).
 
 ### Create source tables
 
 Change location and names according to your needs and preferences:
 
 ```bash
-$ bq --location=EU mk -d --description "Daily prices for Spanish gas stations." gas_prices_esp
-
-$ bq mk -t --description "List of Spanish regions." gas_prices_esp.raw_regions ./table_schemas/regions.json
-$ bq mk -t --description "List of Spanish provinces." gas_prices_esp.raw_provinces ./table_schemas/provinces.json
-$ bq mk -t --description "List of Spanish municipalities." gas_prices_esp.raw_municipalities ./table_schemas/municipalities.json
-$ bq mk -t --description "Data of daily gas prices in Spanish gas stations from API." \
+$ bq --location=EU mk -d --description "Daily prices for Spanish gas stations." gas_prices_spa
+$ bq mk -t --description "List of Spanish regions." gas_prices_spa.raw_regions ./table_schemas/raw_regions.json
+$ bq mk -t --description "List of Spanish provinces." gas_prices_spa.raw_provinces ./table_schemas/raw_provinces.json
+$ bq mk -t --description "List of Spanish municipalities." gas_prices_spa.raw_municipalities ./table_schemas/raw_municipalities.json
+$ bq mk -t --description "Data of daily prices in Spanish gas stations." \
     --time_partitioning_field date \
     --time_partitioning_type MONTH \
-    gas_prices_esp.raw_gas_prices ./table_schemas/gas_prices.json
+    gas_prices_spa.raw_gas_prices ./table_schemas/raw_gas_prices.json
 ```
 
 ### Upload source data
 
 ```bash
 $ export GOOGLE_APPLICATION_CREDENTIALS=/path_to_key.json
-$ python sources_data_load.py --dataset=gas_prices_esp --table=regions
-$ python sources_data_load.py --dataset=gas_prices_esp --table=provinces
-$ python sources_data_load.py --dataset=gas_prices_esp --table=municipalities
-$ python sources_data_load.py --dataset=gas_prices_esp --table=gas_prices --start_date=2007-01-01
+$ python sources_data_load.py --dataset=gas_prices_spa --table=regions
+$ python sources_data_load.py --dataset=gas_prices_spa --table=provinces
+$ python sources_data_load.py --dataset=gas_prices_spa --table=municipalities
+$ python sources_data_load.py --dataset=gas_prices_spa --table=gas_prices --start_date=2007-01-01
 ```
 
-To automate the process follow the steps in [@myagues/dbt-eu-oil-bulletin](https://github.com/myagues/dbt-eu-oil-bulletin).
+## Automate with Cloud Run jobs
+
+[Michael Whitaker](https://www.michaelwhitaker.com/posts/2022-06-01-cloud-run-jobs)'s blog post shows a convenient way to automate runs with Cloud Run jobs. We can adapt the process to:
+
+1. Build a Docker image and store it in [Artifact Registry](https://cloud.google.com/artifact-registry)
+2. Create a [Cloud Run job](https://cloud.google.com/run/docs/create-jobs)
+
+### Custom Docker image in Artifact Registry
+
+From a [Cloud Shell](https://cloud.google.com/shell/docs), create and configure an Artifact Registry repository ([official documentation](https://cloud.google.com/artifact-registry/docs/repositories/create-repos#create)):
+
+```bash
+$ gcloud artifacts repositories create data-ingestion \
+    --repository-format=docker \
+    --description="Raw data ingestion" \
+    --location=$CLOUD_RUN_REGION
+```
+
+Then, we build the basic files for creating an image, first the `Dockerfile`:
+
+```bash
+$ cat <<EOF > Dockerfile
+FROM python:3.12-slim
+
+WORKDIR /usr/src/app
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY sources_data_load.py ./
+
+CMD [ "python", "./sources_data_load.py", "--dataset=gas_prices_spa", "--table=gas_prices" ]
+EOF
+```
+
+We build a repository to store the cloud artifacts:
+
+```bash
+$ gcloud artifacts repositories create data-ingestion \
+    --repository-format=docker \
+    --location=$CLOUD_RUN_REGION \
+    --description="Cloud artifacts for data ingestion tasks." \
+    --disable-vulnerability-scanning
+```
+
+Now we register the image with:
+
+```bash
+$ gcloud builds submit \
+    --tag $CLOUD_RUN_REGION-docker.pkg.dev/$PROJECT_ID/data-ingestion/gas-prices-spa
+```
+
+### Cloud Run job
+
+See [official documentation](https://cloud.google.com/run/docs/create-jobs) for more details:
+
+```bash
+$ gcloud run jobs create gas-prices-spa \
+    --image $CLOUD_RUN_REGION-docker.pkg.dev/$PROJECT_ID/data-ingestion/gas-prices-spa \
+    --max-retries=1 \
+    --parallelism=1 \
+    --region=$CLOUD_RUN_REGION
+```
+### Execute the Cloud Run job on a schedule
+
+See [official documentation](https://cloud.google.com/run/docs/execute/jobs-on-schedule) for more details:
+
+```bash
+$ gcloud projects describe $PROJECT_ID --format="value(projectNumber)"
+```
+
+```bash
+$ gcloud scheduler jobs create http gas-prices-spa \
+  --location $SCHEDULER_REGION \
+  --schedule="0 10 * * *" \
+  --uri="https://$CLOUD_RUN_REGION-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/$PROJECT_ID/jobs/gas-prices-spa:run" \
+  --http-method POST \
+  --oauth-service-account-email $PROJECT_NUMBER-compute@developer.gserviceaccount.com
+```

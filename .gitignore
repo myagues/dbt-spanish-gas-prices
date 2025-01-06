@@ -1,7 +1,3 @@
-target/
-dbt_packages/
-logs/
-.ipynb_checkpoints
-.mypy_cache
-*.json
 .venv/
+.vscode/
+data_export/

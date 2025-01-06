@@ -1,0 +1,167 @@
+[
+  {
+    "mode": "NULLABLE",
+    "name": "municipality",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "municipality_id",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "province",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "province_id",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "region_id",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "town",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "address",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "longitude",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "latitude",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "road_side",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "name",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "restriction",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "sender",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "schedule",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "zip_code",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "station_id",
+    "type": "STRING"
+  },
+  {
+    "mode": "REQUIRED",
+    "name": "date",
+    "type": "DATE"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "gasoline_95E5",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "gasoline_95E10",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "gasoline_95E5_premium",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "gasoline_98E5",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "gasoline_98E10",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "diesel_A",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "diesel_B",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "diesel_premium",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "bioetanol",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "biodiesel",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "perc_bioetanol",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "perc_methyl_ester",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "lpg",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "cng",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "lng",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "hydrogen",
+    "type": "STRING"
+  }
+]

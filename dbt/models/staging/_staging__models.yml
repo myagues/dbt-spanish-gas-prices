@@ -1,10 +1,10 @@
 version: 2
 
 models:
-  - name: stg_gas_prices
+  - name: stg__gas_prices
     columns:
       - name: station_id
-        description: "Station identifier"
+        description: Station identifier.
         data_tests:
           - not_null
 
@@ -14,15 +14,15 @@ models:
           - not_null
 
       - name: price_id
-        description: "Price identifier built from `station_id` and `date`"
+        description: Price identifier built from `station_id` and `date`.
         data_tests:
           - not_null
 
       - name: name
-        description: "Station sign"
+        description: Station sign.
 
       - name: address
-        description: "Station street address"
+        description: Station street address.
 
       - name: town
         description: ""
@@ -43,44 +43,44 @@ models:
               values: ['D', 'I', 'N']
 
       - name: restriction
-        description: "??"
+        description: ""
         data_tests:
           - not_null
           - accepted_values:
-              values: ['P', 'A', 'R', 'p', 'a', 'r']
+              values: ['P', 'A', 'R']
 
       - name: sender
-        description: "Whether a wholesale operator (OM) or a minor distributor (dm) send the data"
+        description: Whether a wholesale operator (OM) or a minor distributor (dm) send the data.
         data_tests:
           - not_null
           - accepted_values:
-              values: ['dm', 'OM']
+              values: ['DM', 'OM']
 
       - name: schedule
-        description: "Station opening schedule"
+        description: Station opening schedule.
 
       - name: region_id
-        description: "Region identifier"
+        description: Region identifier.
         data_tests:
           - not_null
           - relationships:
-              to: ref('stg_regions')
+              to: ref('stg__regions')
               field: id
 
       - name: province_id
-        description: "Province identifier"
+        description: Province identifier.
         data_tests:
           - not_null
           - relationships:
-              to: ref('stg_provinces')
+              to: ref('stg__provinces')
               field: id
 
       - name: municipality_id
-        description: "Municipality identifier"
+        description: Municipality identifier.
         data_tests:
           - not_null
           - relationships:
-              to: ref('stg_municipalities')
+              to: ref('stg__municipalities')
               field: id
 
       - name: gasoline_95e5
@@ -156,19 +156,19 @@ models:
               expression: '>= 0 or null'
 
       - name: lpg
-        description: "Liquefied petroleum gas"
+        description: Liquefied petroleum gas.
         data_tests:
           - dbt_utils.expression_is_true:
               expression: '>= 0 or null'
 
       - name: cng
-        description: "Compressed natural gas"
+        description: Compressed natural gas.
         data_tests:
           - dbt_utils.expression_is_true:
               expression: '>= 0 or null'
 
       - name: lng
-        description: "Liquefied natural gas"
+        description: Liquefied natural gas.
         data_tests:
           - dbt_utils.expression_is_true:
               expression: '>= 0 or null'
@@ -179,54 +179,54 @@ models:
           - dbt_utils.expression_is_true:
               expression: '>= 0 or null'
 
-  - name: stg_municipalities
+  - name: stg__municipalities
     columns:
       - name: id
-        description: "Municipality identifier"
+        description: Municipality identifier.
         data_tests:
           - unique
 
       - name: province_id
-        description: "Province identifier"
+        description: Province identifier.
         data_tests:
           - not_null
           - relationships:
-              to: ref('stg_provinces')
+              to: ref('stg__provinces')
               field: id
 
       - name: name
-        description: "Municipality name"
+        description: Municipality name.
         data_tests:
           - not_null
 
-  - name: stg_provinces
+  - name: stg__provinces
     columns:
       - name: id
-        description: "Province identifier"
+        description: Province identifier.
         data_tests:
           - unique
 
       - name: region_id
-        description: "Region identifier"
+        description: Region identifier.
         data_tests:
           - not_null
           - relationships:
-              to: ref('stg_regions')
+              to: ref('stg__regions')
               field: id
 
       - name: name
-        description: "Province name"
+        description: Province name.
         data_tests:
           - unique
 
-  - name: stg_regions
+  - name: stg__regions
     columns:
       - name: id
-        description: "Region identifier"
+        description: Region identifier.
         data_tests:
           - unique
 
       - name: name
-        description: "Region name"
+        description: Region name.
         data_tests:
           - not_null

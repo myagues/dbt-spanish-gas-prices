@@ -1,17 +1,10 @@
 with
 
 source as (
-
-    select * from {{ source('raw_data', 'raw_gas_prices') }}
-
-),
-
-daily_station_prices as (
-
     select
-        cast(station_id as integer) as station_id,
         date,
-        {{ dbt_utils.generate_surrogate_key(['station_id', 'date']) }} as price_id,
+        cast(station_id as integer) as station_id,
+        {{ dbt_utils.generate_surrogate_key(['date', 'station_id']) }} as price_id,
 
         -- station info
         trim(name) as name,
@@ -20,9 +13,9 @@ daily_station_prices as (
         trim(zip_code) as zip_code,
         safe_cast(replace(longitude, ',', '.') as float64) as longitude,
         safe_cast(replace(latitude, ',', '.') as float64) as latitude,
-        trim(road_side) as road_side,
-        trim(restriction) as restriction,
-        trim(sender) as sender,
+        upper(trim(road_side)) as road_side,
+        upper(trim(restriction)) as restriction,
+        upper(trim(sender)) as sender,
         trim(schedule) as schedule,
         cast(region_id as integer) as region_id,
         cast(province_id as integer) as province_id,
@@ -44,10 +37,19 @@ daily_station_prices as (
         {{ safe_cast_numeric('lpg') }} as lpg,
         {{ safe_cast_numeric('cng') }} as cng,
         {{ safe_cast_numeric('lng') }} as lng,
-        {{ safe_cast_numeric('hydrogen') }} as hydrogen
+        {{ safe_cast_numeric('hydrogen') }} as hydrogen,
 
-    from source
+    from {{ source('raw_data', 'raw_gas_prices') }}
+),
 
+deduplicated as (
+    {{
+        dbt_utils.deduplicate(
+            relation="source",
+            partition_by="price_id",
+            order_by="date",
+        )
+    }}
 )
 
-select * from daily_station_prices
+select * from deduplicated

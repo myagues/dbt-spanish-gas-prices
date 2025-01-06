@@ -3,9 +3,11 @@ import asyncio
 import logging
 from datetime import date
 from itertools import batched
-from typing import Mapping, TypedDict, Union
+from typing import Mapping, Optional, TypedDict
 
 import aiohttp
+import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import pyarrow as pa
 from google.cloud import bigquery
@@ -82,41 +84,79 @@ _TABLE_CONFIG: Mapping[str, TableMetaData] = {
 }
 
 
-async def worker(
+async def fetch_json(url: str, session: aiohttp.ClientSession) -> dict:
+    """Fetch JSON data from the given URL using the provided session.
+    Args:
+        url: URL to fetch
+        session: Session to use for the connection
+    """
+    try:
+        async with session.get(url) as resp:
+            resp.raise_for_status()
+            return await resp.json()
+
+    except aiohttp.ClientError as e:
+        logger.error(f"HTTP error occurred: {e}")
+        return {}
+
+    except Exception as e:
+        logger.error(f"Unexpected error occurred: {e}")
+        return {}
+
+
+async def upload_to_bigquery(
+    client: bigquery.Client,
+    data: pd.DataFrame,
+    table_id: bigquery.TableReference,
+    write_disposition: str = "WRITE_APPEND",
+):
+    """Uploads DataFrame to BigQuery.
+    Args:
+        client: BigQuery client
+        data: Content to upload
+        table_id: Table where content has to be inserted
+        write_disposition: Specifies the action if the destination table already exists
+    """
+    try:
+        job_config = bigquery.LoadJobConfig(write_disposition=write_disposition)
+        # non-awaitable :(, see https://github.com/googleapis/python-bigquery/issues/18
+        job = client.load_table_from_dataframe(data, table_id, job_config=job_config)
+        job.result()
+        logger.info(f"Upload completed with write disposition: {write_disposition}.")
+    except Exception as e:
+        logger.error(f"Error uploading data to BigQuery: {e}")
+
+
+async def process_gas_prices_data(
     day: date, session: aiohttp.ClientSession, table_id: bigquery.TableReference
 ):
     if day == date.today():
         url = f"{_BASE_API_URL}/EstacionesTerrestres"
     else:
-        str_date = day.strftime("%d-%m-%Y")
-        url = f"{_BASE_API_URL}/{_TABLE_CONFIG['gas_prices']['url']}/{str_date}"
+        url = f"{_BASE_API_URL}/{_TABLE_CONFIG['gas_prices']['url']}/{day.strftime('%d-%m-%Y')}"
 
-    async with session.get(url) as resp:
-        data = await resp.json()
-        # some days might be missing, but response is still 200 with an empty JSON
-        # skip the day if content is empty
-        if data:
-            df = pd.DataFrame.from_dict(
-                data["ListaEESSPrecio"], dtype=pd.ArrowDtype(pa.string())
-            )
-            # add date column
-            df["date"] = pa.scalar(day, type=pa.date32())
-            # rename columns to match our table schema
-            df = df.rename(columns=_TABLE_CONFIG["gas_prices"]["columns"])
-            df = df.replace(r"^\s*$", None, regex=True)
-
-            # non-awaitable :(, see https://github.com/googleapis/python-bigquery/issues/18
-            # job = client.load_table_from_dataframe(df, table_id)
-            # job.result()
-            return df
+    data = await fetch_json(url, session)
+    # some days might be missing, but response is still 200 with an empty JSON
+    # skip the day if content is empty
+    if data:
+        df = pd.DataFrame.from_dict(
+            data["ListaEESSPrecio"], dtype=pd.ArrowDtype(pa.string())
+        )
+        # add date column
+        df["date"] = pa.scalar(day, type=pa.date32())
+        # rename columns to match our table schema
+        df = df.rename(columns=_TABLE_CONFIG["gas_prices"]["columns"])
+        df = df.replace(r"^\s*$", None, regex=True)
+        return df
+    return pd.DataFrame()
 
 
 async def data_upload(
     client: bigquery.Client,
     dataset_ref: bigquery.DatasetReference,
     table: str,
-    start_date: Union[str, None],
-    end_date: Union[str, None],
+    start_date: Optional[str],
+    end_date: Optional[str],
     max_connections=5,
 ):
     """Uploads data from API to BigQuery.
@@ -136,66 +176,56 @@ async def data_upload(
         logger.info(f"Querying {table}.")
         request_url = f"{_BASE_API_URL}/Listados/{_TABLE_CONFIG[table]['url']}/"
         logger.info(f"URL: {request_url}")
+
         async with aiohttp.ClientSession(headers=headers) as session:
-            async with session.get(request_url) as resp:
-                # response JSON to DataFrame
-                df = pd.DataFrame.from_dict(
-                    await resp.json(), dtype=pd.ArrowDtype(pa.string())
-                )
+            data = await fetch_json(request_url, session)
+
+        df = pd.DataFrame.from_dict(data, dtype=pd.ArrowDtype(pa.string()))
         # select subset of columns
         df = df[_TABLE_CONFIG[table]["columns"].keys()]
         # rename columns to match our table schema
         df = df.rename(columns=_TABLE_CONFIG[table]["columns"])
         df = df.replace(r"^\s*$", None, regex=True)
         # config upload to overwrite content
-        job_config = bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE")
-        job = client.load_table_from_dataframe(df, table_id, job_config=job_config)
-        job.result()
-        logger.info("Upload done.")
+        await upload_to_bigquery(client, df, table_id, "WRITE_TRUNCATE")
+        logger.info(f"Data upload of {df.shape[0]} rows.")
 
     elif table == "gas_prices":
         logger.info("Querying gas prices.")
+
+        dates_range: npt.NDArray[np.datetime64] = pd.date_range(
+            start=date.fromisoformat(start_date) if start_date else date.today(),
+            end=date.fromisoformat(end_date) if end_date else date.today(),
+        ).date
+        logger.info(
+            f"Fetching interval between '{dates_range[0]}' and '{dates_range[-1]}'."
+        )
+
         connector = aiohttp.TCPConnector(limit_per_host=max_connections)
         async with aiohttp.ClientSession(
             connector=connector, headers=headers
         ) as session:
-            if start_date is None:
-                df = await worker(date.today(), session, table_id)
-                job = client.load_table_from_dataframe(df, table_id)
-                job.result()
+            # extra loop for BQ upload, ugly workaround as a batch
+            splits = list(batched(dates_range, 100))
+            logger.info(f"Split amount: {len(splits)}.")
 
-            else:
-                if end_date is not None:
-                    end_date_ = date.fromisoformat(end_date)
-                else:
-                    end_date_ = date.today()
-
-                dates_range = pd.date_range(
-                    start=date.fromisoformat(start_date),
-                    end=end_date_,
+            for date_range in tqdm(splits):
+                tasks = [
+                    process_gas_prices_data(day, session, table_id)
+                    for day in date_range
+                ]
+                df_list = await tqdm.gather(*tasks, leave=False)
+                df = pd.concat(df_list)
+                await upload_to_bigquery(client, df, table_id)
+                logger.info(
+                    f"Data upload of {df.shape[0]} rows, for interval between '{date_range[0]}' and '{date_range[-1]}'."
                 )
-                # extra loop for BQ upload, ugly workaround as a batch
-                splits = (
-                    [dates_range]
-                    if len(dates_range) < 200
-                    else list(batched(dates_range, 100))
-                )
-                logger.info(f"Split amount: {len(splits)}.")
-                for date_range in tqdm(splits):
-                    tasks = [
-                        worker(day.date(), session, table_id) for day in date_range
-                    ]
-                    df_list = await tqdm.gather(*tasks, leave=False)
-                    df = pd.concat(df_list)
-                    job = client.load_table_from_dataframe(df, table_id)
-                    job.result()
-                    logger.info(f"Upload done for {date_range[-1].date}")
-
     else:
         raise ValueError(f"Table {table} is not valid.")
 
 
-if __name__ == "__main__":
+def parse_arguments() -> argparse.Namespace:
+    """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
         description="Load data from PreciosCarburantes API (https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/help) to BigQuery."
     )
@@ -221,6 +251,7 @@ if __name__ == "__main__":
             "municipalities",
         ],
         default=None,
+        required=True,
         type=str,
     )
     parser.add_argument(
@@ -241,23 +272,28 @@ if __name__ == "__main__":
         default=None,
         type=str,
     )
-    args = parser.parse_args()
+    return parser.parse_args()
 
+
+async def main():
+    args = parse_arguments()
     client = (
         bigquery.Client()
-        if args.service_acc_path is None
+        if not args.service_acc_path
         else bigquery.Client.from_service_account_json(args.service_acc_path)
     )
     dataset_ref = bigquery.DatasetReference(client.project, args.dataset)
 
-    if args.table is not None:
-        asyncio.run(
-            data_upload(
-                client,
-                dataset_ref,
-                args.table,
-                start_date=args.start_date,
-                end_date=args.end_date,
-                max_connections=args.max_connections,
-            )
-        )
+    await data_upload(
+        client,
+        dataset_ref,
+        args.table,
+        start_date=args.start_date,
+        end_date=args.end_date,
+        max_connections=args.max_connections,
+    )
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    asyncio.run(main())

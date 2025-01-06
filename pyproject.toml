@@ -1,0 +1,17 @@
+[project]
+name = "dbt-spanish-gas-prices"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiohttp==3.11.11",
+    "dbt-bigquery>=1.9.0",
+    "dbt-core>=1.9.1",
+    "google-cloud-bigquery[bqstorage]==3.27.0",
+    "numpy==2.2.1",
+    "pandas==2.2.3",
+    "pyarrow==18.1.0",
+    "requests==2.32.3",
+    "tqdm==4.67.1",
+]

@@ -3,55 +3,57 @@ version: 2
 
 sources:
   - name: raw_data
-    schema: gas_prices_esp
+    schema: gas_prices_spa
     tables:
       - name: raw_gas_prices
         columns:
+          - name: date
+
+          - name: address
+          - name: latitude
+          - name: longitude
           - name: municipality
           - name: municipality_id
+          - name: name
           - name: province
           - name: province_id
           - name: region_id
-          - name: town
-          - name: address
-          - name: longitude
-          - name: latitude
-          - name: road_side
-          - name: name
           - name: restriction
-          - name: sender
+          - name: road_side
           - name: schedule
-          - name: zip_code
+          - name: sender
           - name: station_id
-          - name: date
-          - name: gasoline_95E5
-          - name: gasoline_95E10
-          - name: gasoline_95E5_premium
-          - name: gasoline_98E5
-          - name: gasoline_98E10
+          - name: town
+          - name: zip_code
+
+          - name: biodiesel
+          - name: bioetanol
+          - name: cng
           - name: diesel_a
           - name: diesel_b
           - name: diesel_premium
-          - name: bioetanol
-          - name: biodiesel
+          - name: gasoline_95E10
+          - name: gasoline_95E5
+          - name: gasoline_95E5_premium
+          - name: gasoline_98E10
+          - name: gasoline_98E5
+          - name: hydrogen
+          - name: lng
+          - name: lpg
           - name: perc_bioetanol
           - name: perc_methyl_ester
-          - name: lpg
-          - name: cng
-          - name: lng
-          - name: hydrogen
 
       - name: raw_municipalities
         columns:
           - name: id
-          - name: province_id
           - name: name
+          - name: province_id
 
       - name: raw_provinces
         columns:
           - name: id
-          - name: region_id
           - name: name
+          - name: region_id
 
       - name: raw_regions
         columns:

@@ -1,0 +1,17 @@
+[
+  {
+    "mode": "NULLABLE",
+    "name": "id",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "province_id",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "name",
+    "type": "STRING"
+  }
+]
