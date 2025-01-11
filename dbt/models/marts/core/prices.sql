@@ -20,6 +20,7 @@ final as (
     select
         date,
         station_id,
+        price_id,
 
         biodiesel,
         bioetanol,
@@ -47,6 +48,16 @@ final as (
             and '{{ var("end_date") }}'
 
     {% endif %}
+),
+
+deduplicated as (
+    select unique.* except (price_id)
+    from (
+        select
+            array_agg(final order by date limit 1)[offset(0)] as unique
+        from final
+        group by price_id
+    )
 )
 
-select * from final
+select * from deduplicated

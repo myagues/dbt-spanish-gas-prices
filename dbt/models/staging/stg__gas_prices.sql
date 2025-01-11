@@ -40,16 +40,6 @@ source as (
         {{ safe_cast_numeric('hydrogen') }} as hydrogen,
 
     from {{ source('raw_data', 'raw_gas_prices') }}
-),
-
-deduplicated as (
-    {{
-        dbt_utils.deduplicate(
-            relation="source",
-            partition_by="price_id",
-            order_by="date",
-        )
-    }}
 )
 
-select * from deduplicated
+select * from source

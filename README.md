@@ -24,6 +24,7 @@ $ bq mk -t --description "List of Spanish municipalities." gas_prices_spa.raw_mu
 $ bq mk -t --description "Data of daily prices in Spanish gas stations." \
     --time_partitioning_field date \
     --time_partitioning_type MONTH \
+    --require_partition_filter \
     gas_prices_spa.raw_gas_prices ./table_schemas/raw_gas_prices.json
 ```
 
@@ -111,7 +112,7 @@ $ gcloud projects describe $PROJECT_ID --format="value(projectNumber)"
 ```bash
 $ gcloud scheduler jobs create http gas-prices-spa \
   --location $SCHEDULER_REGION \
-  --schedule="0 10 * * *" \
+  --schedule="0 18 * * *" \
   --uri="https://$CLOUD_RUN_REGION-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/$PROJECT_ID/jobs/gas-prices-spa:run" \
   --http-method POST \
   --oauth-service-account-email $PROJECT_NUMBER-compute@developer.gserviceaccount.com
