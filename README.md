@@ -87,7 +87,7 @@ Now we register the image with:
 
 ```bash
 $ gcloud builds submit \
-    --tag $CLOUD_RUN_REGION-docker.pkg.dev/$PROJECT_ID/data-ingestion/gas-prices-spa
+    --tag $CLOUD_RUN_REGION-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/data-ingestion/gas-prices-spa
 ```
 
 ### Cloud Run job
@@ -96,7 +96,7 @@ See [official documentation](https://cloud.google.com/run/docs/create-jobs) for 
 
 ```bash
 $ gcloud run jobs create gas-prices-spa \
-    --image $CLOUD_RUN_REGION-docker.pkg.dev/$PROJECT_ID/data-ingestion/gas-prices-spa \
+    --image $CLOUD_RUN_REGION-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/data-ingestion/gas-prices-spa \
     --max-retries=1 \
     --parallelism=1 \
     --region=$CLOUD_RUN_REGION
@@ -106,14 +106,14 @@ $ gcloud run jobs create gas-prices-spa \
 See [official documentation](https://cloud.google.com/run/docs/execute/jobs-on-schedule) for more details:
 
 ```bash
-$ gcloud projects describe $PROJECT_ID --format="value(projectNumber)"
+$ gcloud projects describe $GOOGLE_CLOUD_PROJECT --format="value(projectNumber)"
 ```
 
 ```bash
 $ gcloud scheduler jobs create http gas-prices-spa \
   --location $SCHEDULER_REGION \
   --schedule="0 18 * * *" \
-  --uri="https://$CLOUD_RUN_REGION-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/$PROJECT_ID/jobs/gas-prices-spa:run" \
+  --uri="https://$CLOUD_RUN_REGION-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/$GOOGLE_CLOUD_PROJECT/jobs/gas-prices-spa:run" \
   --http-method POST \
   --oauth-service-account-email $PROJECT_NUMBER-compute@developer.gserviceaccount.com
 ```

@@ -216,6 +216,7 @@ async def data_upload(
                 ]
                 df_list = await tqdm.gather(*tasks, leave=False)
                 df = pd.concat(df_list)
+                assert not df.empty, "No data to upload."
                 await upload_to_bigquery(client, df, table_id)
                 logger.info(
                     f"Data upload of {df.shape[0]} rows, for interval between '{date_range[0]}' and '{date_range[-1]}'."
