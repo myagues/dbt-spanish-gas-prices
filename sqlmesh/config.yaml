@@ -1,0 +1,21 @@
+gateways:
+  local:
+    connection:
+      type: duckdb
+      database: db.duckdb
+
+  bigquery:
+    connection:
+      type: bigquery
+      project: {{ env_var('GOOGLE_CLOUD_PROJECT') }}
+      location: EU
+
+    state_connection:
+      type: duckdb
+      database: state.duckdb
+
+default_gateway: local
+
+model_defaults:
+  dialect: bigquery
+  start: 2007-01-01

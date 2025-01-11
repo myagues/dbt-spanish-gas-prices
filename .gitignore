@@ -1,3 +1,10 @@
+__pycache__/
+.cache/
 .venv/
 .vscode/
+
 data_export/
+logs/
+
+*.duckdb
+*.duckdb.wal

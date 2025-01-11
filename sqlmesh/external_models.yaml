@@ -1,0 +1,56 @@
+- name: '`gas_prices_spa`.`raw_gas_prices`'
+  columns:
+    municipality: STRING
+    municipality_id: STRING
+    province: STRING
+    province_id: STRING
+    region_id: STRING
+    town: STRING
+    address: STRING
+    longitude: STRING
+    latitude: STRING
+    road_side: STRING
+    name: STRING
+    restriction: STRING
+    sender: STRING
+    schedule: STRING
+    zip_code: STRING
+    station_id: STRING
+    date: DATE
+    gasoline_95E5: STRING
+    gasoline_95E10: STRING
+    gasoline_95E5_premium: STRING
+    gasoline_98E5: STRING
+    gasoline_98E10: STRING
+    diesel_A: STRING
+    diesel_B: STRING
+    diesel_premium: STRING
+    bioetanol: STRING
+    biodiesel: STRING
+    perc_bioetanol: STRING
+    perc_methyl_ester: STRING
+    lpg: STRING
+    cng: STRING
+    lng: STRING
+    hydrogen: STRING
+  gateway: bigquery
+
+- name: '`gas_prices_spa`.`raw_municipalities`'
+  columns:
+    id: STRING
+    province_id: STRING
+    name: STRING
+  gateway: bigquery
+
+- name: '`gas_prices_spa`.`raw_provinces`'
+  columns:
+    id: STRING
+    region_id: STRING
+    name: STRING
+  gateway: bigquery
+
+- name: '`gas_prices_spa`.`raw_regions`'
+  columns:
+    id: STRING
+    name: STRING
+  gateway: bigquery
